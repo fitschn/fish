@@ -1,9 +1,7 @@
 set -g theme_display_user yes
 set -g theme_hostname never
+set -gx PATH $HOME/.local/bin $PATH
 
-#
-# Segments functions
-#
 set -g current_bg NONE
 set -g segment_separator \uE0B0
 
@@ -44,18 +42,24 @@ function prompt_finish -d "Close open segments"
     echo -n "$segment_separator "
   end
   set -g current_bg NONE
+  printf "\n> "
 end
 
-
-#
-# Components
-#
 function prompt_virtual_env -d "Display Python virtual environment"
   if test "$VIRTUAL_ENV"
     prompt_segment blue white (basename $VIRTUAL_ENV)
   end
 end
 
+function prompt_openstack_env -d "Display OpenStack environment"
+  if test "$OS_USERNAME"
+    set OS_URL (echo $OS_AUTH_URL | awk -F/ '{print $3}' | cut -d':' -f -1)
+    set OS_PROMPT $OS_USERNAME@$OS_URL
+    prompt_segment 930205 white $OS_PROMPT
+  else if test "$OS_CLOUD"
+    prompt_segment 930205 white $OS_CLOUD
+  end
+end
 
 function prompt_user -d "Display current user if different from $default_user"
   set -l BG magenta
@@ -87,11 +91,9 @@ function get_hostname -d "Set current hostname to prompt variable $HOSTNAME_PROM
   end
 end
 
-
 function prompt_dir -d "Display the current directory"
   prompt_segment 1C1C1C FFFFFF (prompt_pwd)
 end
-
 
 function prompt_git -d "Display the current git state"
   set -l ref
@@ -143,10 +145,9 @@ function prompt_git -d "Display the current git state"
         set PROMPT "$branch $dirty"
       end
     end
-    prompt_segment $BG black $PROMPT
+    prompt_segment $BG white $PROMPT
   end
 end
-
 
 function prompt_status -d "the symbols for a non zero exit status, root and background jobs"
     if [ $RETVAL -ne 0 ]
@@ -173,20 +174,19 @@ function prompt_time
   prompt_segment white cyan (date "+%H:%M:%S")
 end
 
-#
-# Prompt
-#
 function fish_prompt
   set -g RETVAL $status
   prompt_time
   prompt_status
-  prompt_virtual_env
   prompt_user
+  prompt_virtual_env
+  prompt_openstack_env
   prompt_dir
   available git; and prompt_git
   prompt_finish
 end
 
-status --is-interactive; and . (pyenv init -|psub)
-status --is-interactive; and . (pyenv virtualenv-init -|psub)
-setenv PATH '/Users/mathias/bin' $PATH
+status --is-interactive; and source (pyenv init -|psub)
+status --is-interactive; and source (pyenv virtualenv-init -|psub)
+
+test -e {$HOME}/.iterm2_shell_integration.fish ; and source {$HOME}/.iterm2_shell_integration.fish
