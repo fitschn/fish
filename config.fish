@@ -1,6 +1,8 @@
 set -g theme_display_user yes
 set -g theme_hostname never
 set -gx PATH $HOME/.local/bin $PATH
+set -gx KUBECONFIG $HOME/.kube/config-mnohr:$HOME/.kube/config-gec-dev:$HOME/.kube/config-hhi
+set -g fish_user_paths "/usr/local/opt/mysql-client/bin" $fish_user_paths
 
 set -g current_bg NONE
 set -g segment_separator \uE0B0
@@ -58,6 +60,13 @@ function prompt_openstack_env -d "Display OpenStack environment"
     prompt_segment 930205 white $OS_PROMPT
   else if test "$OS_CLOUD"
     prompt_segment 930205 white $OS_CLOUD
+  end
+end
+
+function prompt_k8s_context -d "Display K8s context"
+  set -l k8s_context (kubectl config current-context 2>/dev/null)
+  if test $k8s_context
+    prompt_segment 378eb7 white $k8s_context
   end
 end
 
@@ -181,9 +190,50 @@ function fish_prompt
   prompt_user
   prompt_virtual_env
   prompt_openstack_env
+  prompt_k8s_context
   prompt_dir
   available git; and prompt_git
   prompt_finish
+end
+
+
+setenv SSH_ENV $HOME/.ssh/environment
+
+function start_agent
+    echo "Initializing new SSH agent ..."
+    ssh-agent -c | sed 's/^echo/#echo/' > $SSH_ENV
+    echo "succeeded"
+    chmod 600 $SSH_ENV
+    . $SSH_ENV > /dev/null
+    ssh-add
+end
+
+function test_identities
+    ssh-add -l | grep "The agent has no identities" > /dev/null
+    if [ $status -eq 0 ]
+        ssh-add ~/.ssh/id_rsa
+        ssh-add ~/.ssh/k8s_rsa
+        if [ $status -eq 2 ]
+            start_agent
+        end
+    end
+end
+
+if [ -n "$SSH_AGENT_PID" ]
+    ps -ef | grep $SSH_AGENT_PID | grep ssh-agent > /dev/null
+    if [ $status -eq 0 ]
+        test_identities
+    end
+else
+    if [ -f $SSH_ENV ]
+        . $SSH_ENV > /dev/null
+    end
+    ps -ef | grep $SSH_AGENT_PID | grep -v grep | grep ssh-agent > /dev/null
+    if [ $status -eq 0 ]
+        test_identities
+    else
+        start_agent
+    end
 end
 
 status --is-interactive; and source (pyenv init -|psub)
